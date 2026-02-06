@@ -99,7 +99,7 @@ export default function Reader() {
     fetchDocument();
     fetchWords();
     checkExistingSession();
-  }, [docId]);
+  }, [docId, fetchDocument, fetchWords, checkExistingSession]);
 
   // Handle playback
   useEffect(() => {
@@ -134,7 +134,7 @@ export default function Reader() {
         clearInterval(intervalRef.current);
       }
     };
-  }, [isPlaying, speed, words.length]);
+  }, [isPlaying, speed, words.length, completeSession]);
 
   // Auto-save session every 10 seconds
   useEffect(() => {
@@ -145,7 +145,7 @@ export default function Reader() {
     }, 10000);
 
     return () => clearInterval(autoSave);
-  }, [sessionId, currentIndex, stats]);
+  }, [sessionId, currentIndex, updateSession]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -170,9 +170,9 @@ export default function Reader() {
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [isPlaying]);
+  }, [togglePlayPause, skipForward, skipBackward]);
 
-  const fetchDocument = async () => {
+  const fetchDocument = useCallback(async () => {
     try {
       const response = await axios.get(`${API}/documents/${docId}`);
       setDocument(response.data);
@@ -181,9 +181,9 @@ export default function Reader() {
       toast.error('Document not found');
       navigate('/library');
     }
-  };
+  }, [docId, navigate]);
 
-  const fetchWords = async () => {
+  const fetchWords = useCallback(async () => {
     try {
       const response = await axios.get(`${API}/documents/${docId}/words`);
       setWords(response.data.words);
@@ -191,9 +191,9 @@ export default function Reader() {
       console.error('Error fetching words:', error);
       toast.error('Failed to load document content');
     }
-  };
+  }, [docId]);
 
-  const checkExistingSession = async () => {
+  const checkExistingSession = useCallback(async () => {
     try {
       const response = await axios.get(`${API}/sessions/document/${docId}`);
       if (response.data) {
@@ -207,9 +207,9 @@ export default function Reader() {
     } catch (error) {
       createNewSession();
     }
-  };
+  }, [docId, createNewSession]);
 
-  const createNewSession = async () => {
+  const createNewSession = useCallback(async () => {
     try {
       const response = await axios.post(`${API}/sessions`, {
         document_id: docId,
@@ -221,13 +221,13 @@ export default function Reader() {
         completed: false,
       });
       setSessionId(response.data.id);
-      setStats({ ...stats, startTime: Date.now() });
+      setStats((prev) => ({ ...prev, startTime: Date.now() }));
     } catch (error) {
       console.error('Error creating session:', error);
     }
-  };
+  }, [docId, words.length, speed]);
 
-  const updateSession = async () => {
+  const updateSession = useCallback(async () => {
     if (!sessionId) return;
 
     try {
@@ -241,9 +241,9 @@ export default function Reader() {
     } catch (error) {
       console.error('Error updating session:', error);
     }
-  };
+  }, [sessionId, currentIndex, stats.wordsRead, stats.timeSpent, speed]);
 
-  const completeSession = async () => {
+  const completeSession = useCallback(async () => {
     if (!sessionId) return;
 
     try {
@@ -258,22 +258,22 @@ export default function Reader() {
     } catch (error) {
       console.error('Error completing session:', error);
     }
-  };
+  }, [sessionId, currentIndex, stats.wordsRead, stats.timeSpent, speed]);
 
-  const togglePlayPause = () => {
+  const togglePlayPause = useCallback(() => {
     if (!isPlaying && stats.startTime === null) {
-      setStats({ ...stats, startTime: Date.now() });
+      setStats((prev) => ({ ...prev, startTime: Date.now() }));
     }
     setIsPlaying(!isPlaying);
-  };
+  }, [isPlaying, stats.startTime]);
 
-  const skipForward = () => {
+  const skipForward = useCallback(() => {
     setCurrentIndex((prev) => Math.min(words.length - 1, prev + 1));
-  };
+  }, [words.length]);
 
-  const skipBackward = () => {
+  const skipBackward = useCallback(() => {
     setCurrentIndex((prev) => Math.max(0, prev - 1));
-  };
+  }, []);
 
   const saveBookmark = () => {
     setBookmark(currentIndex);
