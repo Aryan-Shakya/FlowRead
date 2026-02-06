@@ -91,23 +91,52 @@ export default function Reader() {
     startTime: null,
   });
 
+  const wordsRef = useRef([]);
+  const currentIndexRef = useRef(0);
+  const sessionIdRef = useRef(null);
+  const statsRef = useRef({
+    wordsRead: 0,
+    timeSpent: 0,
+    startTime: null,
+  });
+  const speedRef = useRef(200);
+  const hasCheckedSession = useRef(false);
+
   const intervalRef = useRef(null);
   const lastUpdateRef = useRef(Date.now());
 
-  // Fetch document and words
+  // Initial data fetch - only on mount or docId change
   useEffect(() => {
     fetchDocument();
     fetchWords();
-    checkExistingSession();
-  }, [docId, fetchDocument, fetchWords, checkExistingSession]);
+    // Reset session check flag when docId changes
+    hasCheckedSession.current = false;
+  }, [docId, fetchDocument, fetchWords]);
+
+  // Session check - only after words are loaded
+  useEffect(() => {
+    if (words.length > 0 && !hasCheckedSession.current) {
+      hasCheckedSession.current = true;
+      checkExistingSession();
+    }
+  }, [words.length, checkExistingSession]);
+
+  // Sync refs with state
+  useEffect(() => {
+    wordsRef.current = words;
+    currentIndexRef.current = currentIndex;
+    sessionIdRef.current = sessionId;
+    statsRef.current = stats;
+    speedRef.current = speed;
+  }, [words, currentIndex, sessionId, stats, speed]);
 
   // Handle playback
   useEffect(() => {
     if (isPlaying) {
-      const interval = 60000 / speed; // Convert WPM to milliseconds
+      const interval = 60000 / speed;
       intervalRef.current = setInterval(() => {
         setCurrentIndex((prev) => {
-          if (prev >= words.length - 1) {
+          if (prev >= wordsRef.current.length - 1) {
             setIsPlaying(false);
             completeSession();
             return prev;
@@ -115,12 +144,14 @@ export default function Reader() {
           return prev + 1;
         });
 
-        // Update stats
-        setStats((prev) => ({
-          ...prev,
-          wordsRead: prev.wordsRead + 1,
-          timeSpent: prev.timeSpent + (Date.now() - lastUpdateRef.current) / 1000,
-        }));
+        setStats((prev) => {
+          const newStats = {
+            ...prev,
+            wordsRead: prev.wordsRead + 1,
+            timeSpent: prev.timeSpent + (Date.now() - lastUpdateRef.current) / 1000,
+          };
+          return newStats;
+        });
         lastUpdateRef.current = Date.now();
       }, interval);
     } else {
@@ -134,18 +165,18 @@ export default function Reader() {
         clearInterval(intervalRef.current);
       }
     };
-  }, [isPlaying, speed, words.length, completeSession]);
+  }, [isPlaying, speed, completeSession]);
 
   // Auto-save session every 10 seconds
   useEffect(() => {
     const autoSave = setInterval(() => {
-      if (sessionId && currentIndex > 0) {
+      if (sessionIdRef.current && currentIndexRef.current > 0) {
         updateSession();
       }
     }, 10000);
 
     return () => clearInterval(autoSave);
-  }, [sessionId, currentIndex, updateSession]);
+  }, [updateSession]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -214,10 +245,10 @@ export default function Reader() {
       const response = await axios.post(`${API}/sessions`, {
         document_id: docId,
         current_word_index: 0,
-        total_words: words.length || 0,
+        total_words: wordsRef.current.length || 0,
         words_read: 0,
         time_spent: 0,
-        speed_wpm: speed,
+        speed_wpm: speedRef.current,
         completed: false,
       });
       setSessionId(response.data.id);
@@ -225,40 +256,40 @@ export default function Reader() {
     } catch (error) {
       console.error('Error creating session:', error);
     }
-  }, [docId, words.length, speed]);
+  }, [docId]);
 
   const updateSession = useCallback(async () => {
-    if (!sessionId) return;
+    if (!sessionIdRef.current) return;
 
     try {
-      await axios.put(`${API}/sessions/${sessionId}`, {
-        current_word_index: currentIndex,
-        words_read: stats.wordsRead,
-        time_spent: Math.floor(stats.timeSpent),
-        speed_wpm: speed,
+      await axios.put(`${API}/sessions/${sessionIdRef.current}`, {
+        current_word_index: currentIndexRef.current,
+        words_read: statsRef.current.wordsRead,
+        time_spent: Math.floor(statsRef.current.timeSpent),
+        speed_wpm: speedRef.current,
         completed: false,
       });
     } catch (error) {
       console.error('Error updating session:', error);
     }
-  }, [sessionId, currentIndex, stats.wordsRead, stats.timeSpent, speed]);
+  }, []);
 
   const completeSession = useCallback(async () => {
-    if (!sessionId) return;
+    if (!sessionIdRef.current) return;
 
     try {
-      await axios.put(`${API}/sessions/${sessionId}`, {
-        current_word_index: currentIndex,
-        words_read: stats.wordsRead,
-        time_spent: Math.floor(stats.timeSpent),
-        speed_wpm: speed,
+      await axios.put(`${API}/sessions/${sessionIdRef.current}`, {
+        current_word_index: currentIndexRef.current,
+        words_read: statsRef.current.wordsRead,
+        time_spent: Math.floor(statsRef.current.timeSpent),
+        speed_wpm: speedRef.current,
         completed: true,
       });
       toast.success('Reading session completed! 🎉');
     } catch (error) {
       console.error('Error completing session:', error);
     }
-  }, [sessionId, currentIndex, stats.wordsRead, stats.timeSpent, speed]);
+  }, []);
 
   const togglePlayPause = useCallback(() => {
     if (!isPlaying && stats.startTime === null) {
