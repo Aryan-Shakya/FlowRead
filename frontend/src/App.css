@@ -1,0 +1,61 @@
+.App {
+  min-height: 100vh;
+}
+
+.word-display {
+  user-select: none;
+  transition: opacity 0.075s ease-in-out;
+}
+
+.control-bar {
+  backdrop-filter: blur(24px);
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.dark .control-bar {
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.hero-gradient {
+  background: linear-gradient(135deg, #f5f7fa 0%, #e3e9f0 100%);
+}
+
+.dark .hero-gradient {
+  background: linear-gradient(135deg, #09090b 0%, #18181b 100%);
+}
+
+/* Smooth transitions for theme switching */
+* {
+  transition-property: background-color, border-color, color;
+  transition-duration: 0.2s;
+  transition-timing-function: ease-in-out;
+}
+
+/* Override for specific interactive elements */
+button, a, input, select, textarea {
+  transition-property: background-color, border-color, color, opacity, transform;
+  transition-duration: 0.2s;
+}
+
+/* Control bar fade animation */
+.control-fade-enter {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.control-fade-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.3s, transform 0.3s;
+}
+
+.control-fade-exit {
+  opacity: 1;
+}
+
+.control-fade-exit-active {
+  opacity: 0;
+  transition: opacity 0.3s;
+}
