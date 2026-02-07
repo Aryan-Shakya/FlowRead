@@ -85,6 +85,7 @@ export default function Reader() {
   const [useCustomColors, setUseCustomColors] = useState(false);
   const [sessionId, setSessionId] = useState(null);
   const [bookmark, setBookmark] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     wordsRead: 0,
     timeSpent: 0,
@@ -107,8 +108,12 @@ export default function Reader() {
 
   // Initial data fetch - only on mount or docId change
   useEffect(() => {
-    fetchDocument();
-    fetchWords();
+    const init = async () => {
+      setLoading(true);
+      await Promise.all([fetchDocument(), fetchWords()]);
+      setLoading(false);
+    };
+    init();
     // Reset session check flag when docId changes
     hasCheckedSession.current = false;
   }, [docId, fetchDocument, fetchWords]);
@@ -349,6 +354,22 @@ export default function Reader() {
       </div>
     );
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6">
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+          className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full mb-4"
+        />
+        <p className="text-xl font-manrope font-semibold mb-2 text-center">Loading your document...</p>
+        <p className="text-muted-foreground text-center max-w-xs">
+          If this is the first time today, it might take up to a minute for the server to wake up.
+        </p>
+      </div>
+    );
+  }
 
   const progress = words.length > 0 ? (currentIndex / words.length) * 100 : 0;
 

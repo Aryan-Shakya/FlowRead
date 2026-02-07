@@ -25,6 +25,7 @@ client = MongoClient(MONGO_URL)
 db = client[DB_NAME]
 documents_table = db['documents']
 sessions_table = db['reading_sessions']
+words_table = db['document_words']
 
 # Create the main app without a prefix
 app = FastAPI()
@@ -175,7 +176,23 @@ async def upload_document(file: UploadFile = File(...)):
         doc_obj = Document(**doc_data.model_dump())
         doc_dict = doc_obj.model_dump()
         
+        # Pre-process words with syllables
+        processed_words = []
+        for word in words:
+            syllables = detect_syllables(word)
+            vowel_data = [get_vowel_indices(syl) for syl in syllables]
+            processed_words.append({
+                "word": word,
+                "syllables": syllables,
+                "vowels": vowel_data
+            })
+        
+        # Save document and processed words
         documents_table.insert_one(doc_dict)
+        words_table.insert_one({
+            "document_id": doc_obj.id,
+            "words": processed_words
+        })
         
         return doc_obj
     
@@ -210,32 +227,41 @@ async def delete_document(doc_id: str):
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Document not found")
     
-    # Also delete associated sessions
+    # Also delete associated sessions and words
     sessions_table.delete_many({"document_id": doc_id})
+    words_table.delete_one({"document_id": doc_id})
     
     return {"message": "Document deleted successfully"}
 
 @api_router.get("/documents/{doc_id}/words")
 async def get_document_words(doc_id: str):
-    doc = documents_table.find_one({"id": doc_id})
+    words_data = words_table.find_one({"document_id": doc_id})
     
-    if not doc:
-        raise HTTPException(status_code=404, detail="Document not found")
-    
-    words = process_text_to_words(doc['content'])
-    
-    # Process words with syllables
-    processed_words = []
-    for word in words:
-        syllables = detect_syllables(word)
-        vowel_data = [get_vowel_indices(syl) for syl in syllables]
-        processed_words.append({
-            "word": word,
-            "syllables": syllables,
-            "vowels": vowel_data
+    if not words_data:
+        # Fallback if words weren't pre-computed (for older documents)
+        doc = documents_table.find_one({"id": doc_id})
+        if not doc:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        words = process_text_to_words(doc['content'])
+        processed_words = []
+        for word in words:
+            syllables = detect_syllables(word)
+            vowel_data = [get_vowel_indices(syl) for syl in syllables]
+            processed_words.append({
+                "word": word,
+                "syllables": syllables,
+                "vowels": vowel_data
+            })
+        
+        # Cache them for next time
+        words_table.insert_one({
+            "document_id": doc_id,
+            "words": processed_words
         })
+        return {"words": processed_words}
     
-    return {"words": processed_words}
+    return {"words": words_data['words']}
 
 @api_router.post("/sessions", response_model=ReadingSession)
 async def create_session(session_data: ReadingSessionCreate):

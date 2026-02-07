@@ -92,7 +92,7 @@ export default function Library() {
       <div className="container mx-auto px-6 py-8">
         {/* Stats Cards */}
         {stats && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8"
@@ -163,7 +163,13 @@ export default function Library() {
         <div>
           <h2 className="text-xl font-manrope font-semibold mb-4">Your Documents</h2>
           {loading ? (
-            <div className="text-center py-12 text-muted-foreground">Loading...</div>
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mb-4"></div>
+              <p className="text-lg font-medium">Fetching your library...</p>
+              <p className="text-sm text-muted-foreground max-w-xs mt-2">
+                If the server was asleep, this might take a moment to wake up.
+              </p>
+            </div>
           ) : documents.length === 0 ? (
             <Card className="p-12 text-center">
               <FileText className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
